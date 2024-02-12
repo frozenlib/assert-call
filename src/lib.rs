@@ -2,11 +2,14 @@
 //!
 //! See [`CallRecorder`] for details.
 //!
-use std::{collections::VecDeque, error::Error, fmt::Display};
+use std::{cmp::min, collections::VecDeque, error::Error, fmt::Display};
 
 use thread::{Global, Local, Thread};
 
 pub mod thread;
+
+#[cfg(test)]
+mod tests;
 
 /// Record the call.
 ///
@@ -19,8 +22,8 @@ pub mod thread;
 /// # Examples
 ///
 /// ```
-/// # let cr = assert_call::CallRecorder::new_local();
 /// use assert_call::call;
+/// let c = assert_call::CallRecorder::new_local();
 ///
 /// call!("1");
 /// call!("{}-{}", 1, 2);
@@ -107,17 +110,10 @@ impl<T: Thread> CallRecorder<T> {
         }
     }
 
-    /// Return `Err` if [`call`] call does not match the expected pattern.
-    ///
-    /// Calling this method clears the recorded [`call`] calls.
-    pub fn result(&mut self, expect: impl Into<Call>) -> Result<(), CallMismatchError> {
-        self.result_with_msg(expect, "mismatch call")
-    }
-
     /// Return `Err` with specified message if [`call`] call does not match the expected pattern.
     ///
     /// Calling this method clears the recorded [`call`] calls.
-    pub fn result_with_msg(
+    fn result_with_msg(
         &mut self,
         expect: impl Into<Call>,
         msg: &str,
@@ -280,6 +276,11 @@ impl<T: Into<Call>> From<Vec<T>> for Call {
         Call::seq(value)
     }
 }
+impl From<usize> for Call {
+    fn from(value: usize) -> Self {
+        Call::id(value)
+    }
+}
 impl From<()> for Call {
     fn from(_: ()) -> Self {
         Call::empty()
@@ -293,7 +294,7 @@ impl From<&Call> for Call {
 
 /// The error type representing that the call to [`call`] is different from what was expected.
 #[derive(Debug)]
-pub struct CallMismatchError {
+struct CallMismatchError {
     msg: String,
     actual: Vec<CallRecord>,
     expect: Vec<String>,
@@ -316,18 +317,50 @@ impl CallMismatchError {
             "(end)"
         }
     }
+    #[cfg(test)]
+    fn set_dummy_file_line(&mut self) {
+        for a in &mut self.actual {
+            a.set_dummy_file_line();
+        }
+    }
 }
 impl Display for CallMismatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "all actual calls")?;
-        for index in 0..=self.actual.len() {
-            let head = if index == self.mismatch_index {
+        writeln!(f, "actual calls :")?;
+        let around = 5;
+
+        let mut start = 0;
+        let end = self.actual.len();
+
+        if self.mismatch_index > around {
+            start = self.mismatch_index - around;
+        }
+        if start > 0 {
+            writeln!(f, "  ...(previous {start} calls omitted)")?;
+        }
+        let end = min(self.mismatch_index + around + 1, end);
+
+        let to_head = |index: usize| {
+            if index == self.mismatch_index {
                 "*"
             } else {
                 " "
-            };
-            writeln!(f, "{head} {}", self.actual_id(index))?;
+            }
+        };
+
+        for index in start..end {
+            writeln!(f, "{} {}", to_head(index), self.actual_id(index))?;
         }
+        if end == self.actual.len() {
+            writeln!(f, "{} (end)", to_head(end))?;
+        } else {
+            writeln!(
+                f,
+                "  ...(following {} calls omitted)",
+                self.actual.len() - end
+            )?;
+        }
+
         writeln!(f)?;
         writeln!(f, "{}", self.msg)?;
         if let Some(a) = self.actual.get(self.mismatch_index) {
@@ -346,4 +379,11 @@ pub struct CallRecord {
     id: String,
     file: &'static str,
     line: u32,
+}
+impl CallRecord {
+    #[cfg(test)]
+    fn set_dummy_file_line(&mut self) {
+        self.file = r"tests\test.rs";
+        self.line = 10;
+    }
 }

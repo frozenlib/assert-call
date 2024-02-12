@@ -4,6 +4,8 @@ use std::{
     time::Duration,
 };
 
+use pretty_assertions::assert_eq;
+
 use assert_call::{call, Call, CallRecorder};
 
 #[test]
