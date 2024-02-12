@@ -255,32 +255,43 @@ impl Call {
         }
     }
 }
+
+/// Equivalent to [`Call::id`].
 impl From<&str> for Call {
     fn from(value: &str) -> Self {
         Call::id(value)
     }
 }
+
+/// Equivalent to [`Call::id`].
 impl From<String> for Call {
     fn from(value: String) -> Self {
         Call::id(value)
     }
 }
 
-impl<T: Into<Call>, const N: usize> From<[T; N]> for Call {
-    fn from(value: [T; N]) -> Self {
-        Call::seq(value)
-    }
-}
-impl<T: Into<Call>> From<Vec<T>> for Call {
-    fn from(value: Vec<T>) -> Self {
-        Call::seq(value)
-    }
-}
+/// Equivalent to [`Call::id`].
 impl From<usize> for Call {
     fn from(value: usize) -> Self {
         Call::id(value)
     }
 }
+
+/// Equivalent to [`Call::seq`].
+impl<T: Into<Call>, const N: usize> From<[T; N]> for Call {
+    fn from(value: [T; N]) -> Self {
+        Call::seq(value)
+    }
+}
+
+/// Equivalent to [`Call::seq`].
+impl<T: Into<Call>> From<Vec<T>> for Call {
+    fn from(value: Vec<T>) -> Self {
+        Call::seq(value)
+    }
+}
+
+/// Equivalent to [`Call::empty`].
 impl From<()> for Call {
     fn from(_: ()) -> Self {
         Call::empty()

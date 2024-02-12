@@ -41,7 +41,7 @@ expect : 1, 2"#,
 }
 
 #[test]
-fn many_calls() {
+fn long_actual_calls() {
     let c = CallRecorder::new_local();
     for i in 0..20 {
         if i == 10 {
