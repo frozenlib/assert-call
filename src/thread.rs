@@ -68,20 +68,13 @@ impl Drop for Global {
 impl CallRecord {
     #[track_caller]
     pub fn record(id: String, file: &'static str, line: u32) {
-        let success = ACTUAL_LOCAL.with(|actual| {
+        ACTUAL_LOCAL.with(|actual| {
             let log = Self { id, file, line };
             if let Some(actual) = &mut *actual.borrow_mut() {
                 actual.push(log);
-                return true;
-            }
-            if let Some(seq) = ACTUAL_GLOBAL.lock().unwrap().as_mut() {
+            } else if let Some(seq) = ACTUAL_GLOBAL.lock().unwrap().as_mut() {
                 seq.push(log);
-                return true;
             }
-            false
         });
-        if !success {
-            panic!("CallRecorder is not initialized");
-        }
     }
 }

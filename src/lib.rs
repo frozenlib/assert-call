@@ -46,10 +46,6 @@ mod tests;
 ///
 /// The argument is the call ID with the same format as [`std::format`].
 ///
-/// # Panics
-///
-/// Panics if [`CallRecorder`] is not initialized.
-///
 /// # Examples
 ///
 /// ```
