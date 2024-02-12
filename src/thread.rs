@@ -66,6 +66,7 @@ impl Drop for Global {
 }
 
 impl CallRecord {
+    #[track_caller]
     pub fn record(id: String, file: &'static str, line: u32) {
         let success = ACTUAL_LOCAL.with(|actual| {
             let log = Self { id, file, line };
