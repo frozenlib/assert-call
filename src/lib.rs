@@ -5,6 +5,7 @@
 use std::{cmp::min, collections::VecDeque, error::Error, fmt::Display};
 
 use thread::{Global, Local, Thread};
+use yansi::{Condition, Paint};
 
 pub mod thread;
 
@@ -106,7 +107,13 @@ impl<T: Thread> CallRecorder<T> {
     pub fn verify_with_msg(&mut self, expect: impl Into<Call>, msg: &str) {
         match self.result_with_msg(expect, msg) {
             Ok(_) => {}
-            Err(e) => panic!("{e}"),
+            Err(e) => {
+                if Condition::tty_and_color() {
+                    panic!("{e:#}");
+                } else {
+                    panic!("{e}")
+                }
+            }
         }
     }
 
@@ -351,19 +358,22 @@ impl Display for CallMismatchError {
         }
         let end = min(self.mismatch_index + around + 1, end);
 
-        let to_head = |index: usize| {
-            if index == self.mismatch_index {
-                "*"
+        let write_actual = |f: &mut std::fmt::Formatter<'_>, index: usize, id: &str| {
+            let is_mismatch = index == self.mismatch_index;
+            let head = if is_mismatch { "*" } else { " " };
+            let cond = if is_mismatch && f.alternate() {
+                Condition::ALWAYS
             } else {
-                " "
-            }
+                Condition::NEVER
+            };
+            writeln!(f, "{}", format_args!("{head} {id}").red().whenever(cond))
         };
 
         for index in start..end {
-            writeln!(f, "{} {}", to_head(index), self.actual_id(index))?;
+            write_actual(f, index, self.actual_id(index))?;
         }
         if end == self.actual.len() {
-            writeln!(f, "{} (end)", to_head(end))?;
+            write_actual(f, end, "(end)")?;
         } else {
             writeln!(
                 f,
