@@ -1,6 +1,6 @@
 use pretty_assertions::assert_str_eq;
 
-use crate::{call, thread::Thread, Call, CallRecorder, ToCall};
+use crate::{call, records::Thread, Call, CallRecorder, ToCall};
 
 #[test]
 fn err() {

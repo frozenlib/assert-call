@@ -105,9 +105,9 @@ fn verify_2_local() {
 }
 #[test]
 fn id() {
-let mut c = CallRecorder::new_local();
-call!("1");
-c.verify(Call::id("1"));
+    let mut c = CallRecorder::new_local();
+    call!("1");
+    c.verify(Call::id("1"));
 }
 
 #[test]

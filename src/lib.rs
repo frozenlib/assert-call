@@ -34,10 +34,10 @@
 //! ```
 use std::{cmp::min, collections::VecDeque, error::Error, fmt::Display};
 
-use thread::{Global, Local, Thread};
+use records::{Global, Local, Thread};
 use yansi::{Condition, Paint};
 
-pub mod thread;
+pub mod records;
 
 #[cfg(test)]
 mod tests;
@@ -58,7 +58,7 @@ mod tests;
 #[macro_export]
 macro_rules! call {
     ($($id:tt)*) => {
-        $crate::CallRecord::record(::std::format!($($id)*), ::std::file!(), ::std::line!());
+        $crate::records::Records::push(::std::format!($($id)*), ::std::file!(), ::std::line!());
     };
 }
 
@@ -120,7 +120,7 @@ impl<T: Thread> CallRecorder<T> {
     /// Calling this method clears the recorded [`call`] calls.
     fn result_with_msg(&mut self, expect: impl ToCall, msg: &str) -> Result<(), CallMismatchError> {
         let expect: Call = expect.to_call();
-        let actual = self.thread.take_actual();
+        let actual = self.thread.take_actual().0;
         expect.verify(actual, msg)
     }
 }
@@ -225,7 +225,7 @@ impl Call {
         Self::Any(p.into_iter().map(|x| x.to_call()).collect())
     }
 
-    fn verify(mut self, actual: Vec<CallRecord>, msg: &str) -> Result<(), CallMismatchError> {
+    fn verify(mut self, actual: Vec<Record>, msg: &str) -> Result<(), CallMismatchError> {
         match self.verify_nexts(&actual) {
             Ok(_) => Ok(()),
             Err(mut e) => {
@@ -237,17 +237,13 @@ impl Call {
             }
         }
     }
-    fn verify_nexts(&mut self, actual: &[CallRecord]) -> Result<(), CallMismatchError> {
+    fn verify_nexts(&mut self, actual: &[Record]) -> Result<(), CallMismatchError> {
         for index in 0..=actual.len() {
             self.verify_next(index, actual.get(index))?;
         }
         Ok(())
     }
-    fn verify_next(
-        &mut self,
-        index: usize,
-        a: Option<&CallRecord>,
-    ) -> Result<(), CallMismatchError> {
+    fn verify_next(&mut self, index: usize, a: Option<&Record>) -> Result<(), CallMismatchError> {
         if let Err(e) = self.next(a) {
             if a.is_none() && e.is_empty() {
                 return Ok(());
@@ -258,7 +254,7 @@ impl Call {
         }
     }
 
-    fn next(&mut self, p: Option<&CallRecord>) -> Result<(), Vec<String>> {
+    fn next(&mut self, p: Option<&Record>) -> Result<(), Vec<String>> {
         match self {
             Call::Id(id) => {
                 if Some(id.as_str()) == p.as_ref().map(|x| x.id.as_str()) {
@@ -384,7 +380,7 @@ impl ToCall for () {
 #[derive(Debug)]
 struct CallMismatchError {
     msg: String,
-    actual: Vec<CallRecord>,
+    actual: Vec<Record>,
     expect: Vec<String>,
     mismatch_index: usize,
 }
@@ -466,12 +462,12 @@ impl Error for CallMismatchError {}
 
 /// Record of one [`call`] call.
 #[derive(Debug)]
-pub struct CallRecord {
+struct Record {
     id: String,
     file: &'static str,
     line: u32,
 }
-impl CallRecord {
+impl Record {
     #[cfg(test)]
     fn set_dummy_file_line(&mut self) {
         self.file = r"tests\test.rs";

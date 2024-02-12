@@ -5,18 +5,18 @@ use std::{
     sync::{Condvar, Mutex},
 };
 
-use crate::CallRecord;
+use crate::Record;
 
 thread_local! {
-    static ACTUAL_LOCAL: RefCell<Option<Vec<CallRecord>>> = RefCell::new(None);
+    static ACTUAL_LOCAL: RefCell<Option<Vec<Record>>> = RefCell::new(None);
 }
 
-static ACTUAL_GLOBAL: Mutex<Option<Vec<CallRecord>>> = Mutex::new(None);
+static ACTUAL_GLOBAL: Mutex<Option<Vec<Record>>> = Mutex::new(None);
 static ACTUAL_GLOBAL_CONDVAR: Condvar = Condvar::new();
 
 pub trait Thread {
     fn init() -> Self;
-    fn take_actual(&self) -> Vec<CallRecord>;
+    fn take_actual(&self) -> Records;
 }
 
 pub struct Local(PhantomData<*mut ()>);
@@ -32,8 +32,8 @@ impl Thread for Local {
         });
         Self(PhantomData)
     }
-    fn take_actual(&self) -> Vec<CallRecord> {
-        ACTUAL_LOCAL.with(|actual| take(actual.borrow_mut().as_mut().unwrap()))
+    fn take_actual(&self) -> Records {
+        Records(ACTUAL_LOCAL.with(|actual| take(actual.borrow_mut().as_mut().unwrap())))
     }
 }
 impl Drop for Local {
@@ -54,8 +54,8 @@ impl Thread for Global {
         *actual = Some(Vec::new());
         Self {}
     }
-    fn take_actual(&self) -> Vec<CallRecord> {
-        take(ACTUAL_GLOBAL.lock().unwrap().as_mut().unwrap())
+    fn take_actual(&self) -> Records {
+        Records(take(ACTUAL_GLOBAL.lock().unwrap().as_mut().unwrap()))
     }
 }
 impl Drop for Global {
@@ -65,15 +65,17 @@ impl Drop for Global {
     }
 }
 
-impl CallRecord {
+pub struct Records(pub(crate) Vec<Record>);
+
+impl Records {
     #[track_caller]
-    pub fn record(id: String, file: &'static str, line: u32) {
+    pub fn push(id: String, file: &'static str, line: u32) {
         ACTUAL_LOCAL.with(|actual| {
-            let log = Self { id, file, line };
+            let r = Record { id, file, line };
             if let Some(actual) = &mut *actual.borrow_mut() {
-                actual.push(log);
+                actual.push(r);
             } else if let Some(seq) = ACTUAL_GLOBAL.lock().unwrap().as_mut() {
-                seq.push(log);
+                seq.push(r);
             }
         });
     }
