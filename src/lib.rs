@@ -94,7 +94,7 @@ impl<T: Thread> CallRecorder<T> {
     ///
     /// Calling this method clears the recorded [`call`] calls.
     #[track_caller]
-    pub fn verify(&mut self, expect: impl Into<Call>) {
+    pub fn verify(&mut self, expect: impl ToCall) {
         self.verify_with_msg(expect, "mismatch call");
     }
 
@@ -102,7 +102,7 @@ impl<T: Thread> CallRecorder<T> {
     ///
     /// Calling this method clears the recorded [`call`] calls.
     #[track_caller]
-    pub fn verify_with_msg(&mut self, expect: impl Into<Call>, msg: &str) {
+    pub fn verify_with_msg(&mut self, expect: impl ToCall, msg: &str) {
         match self.result_with_msg(expect, msg) {
             Ok(_) => {}
             Err(e) => {
@@ -118,12 +118,8 @@ impl<T: Thread> CallRecorder<T> {
     /// Return `Err` with specified message if [`call`] call does not match the expected pattern.
     ///
     /// Calling this method clears the recorded [`call`] calls.
-    fn result_with_msg(
-        &mut self,
-        expect: impl Into<Call>,
-        msg: &str,
-    ) -> Result<(), CallMismatchError> {
-        let expect: Call = expect.into();
+    fn result_with_msg(&mut self, expect: impl ToCall, msg: &str) -> Result<(), CallMismatchError> {
+        let expect: Call = expect.to_call();
         let actual = self.thread.take_actual();
         expect.verify(actual, msg)
     }
@@ -138,6 +134,8 @@ impl<T: Thread> Drop for CallRecorder<T> {
 }
 
 /// Pattern of expected [`call`] calls.
+///
+/// To create a value of this type, call a method of this type or use [`ToCall`].
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Call {
     Id(String),
@@ -188,8 +186,8 @@ impl Call {
     /// call!("2");
     /// c.verify(Call::seq(["1", "2"]));
     /// ```
-    pub fn seq(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
-        Self::Seq(p.into_iter().map(|x| x.into()).collect())
+    pub fn seq(p: impl IntoIterator<Item = impl ToCall>) -> Self {
+        Self::Seq(p.into_iter().map(|x| x.to_call()).collect())
     }
 
     /// Create `Call` to represent all specified `Call`s will be called in parallel.
@@ -206,8 +204,8 @@ impl Call {
     /// call!("a-2");
     /// c.verify(Call::par([["a-1", "a-2"], ["b-1", "b-2"]]));
     /// ```
-    pub fn par(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
-        Self::Par(p.into_iter().map(|x| x.into()).collect())
+    pub fn par(p: impl IntoIterator<Item = impl ToCall>) -> Self {
+        Self::Par(p.into_iter().map(|x| x.to_call()).collect())
     }
 
     /// Create `Call` to represent one of the specified `Call`s will be called.
@@ -223,8 +221,8 @@ impl Call {
     /// call!("4");
     /// c.verify(Call::any(["3", "4"]));
     /// ```
-    pub fn any(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
-        Self::Any(p.into_iter().map(|x| x.into()).collect())
+    pub fn any(p: impl IntoIterator<Item = impl ToCall>) -> Self {
+        Self::Any(p.into_iter().map(|x| x.to_call()).collect())
     }
 
     fn verify(mut self, actual: Vec<CallRecord>, msg: &str) -> Result<(), CallMismatchError> {
@@ -316,50 +314,69 @@ impl Call {
     }
 }
 
-/// Equivalent to [`Call::id`].
-impl From<&str> for Call {
-    fn from(value: &str) -> Self {
-        Call::id(value)
+/// Types convertible to [`Call`].
+pub trait ToCall {
+    fn to_call(&self) -> Call;
+}
+
+impl<T: ?Sized + ToCall> ToCall for &T {
+    fn to_call(&self) -> Call {
+        T::to_call(self)
+    }
+}
+
+impl ToCall for Call {
+    fn to_call(&self) -> Call {
+        self.clone()
     }
 }
 
 /// Equivalent to [`Call::id`].
-impl From<String> for Call {
-    fn from(value: String) -> Self {
-        Call::id(value)
+impl ToCall for str {
+    fn to_call(&self) -> Call {
+        Call::id(self)
     }
 }
 
 /// Equivalent to [`Call::id`].
-impl From<usize> for Call {
-    fn from(value: usize) -> Self {
-        Call::id(value)
+impl ToCall for String {
+    fn to_call(&self) -> Call {
+        Call::id(self)
+    }
+}
+
+/// Equivalent to [`Call::id`].
+impl ToCall for usize {
+    fn to_call(&self) -> Call {
+        Call::id(self)
     }
 }
 
 /// Equivalent to [`Call::seq`].
-impl<T: Into<Call>, const N: usize> From<[T; N]> for Call {
-    fn from(value: [T; N]) -> Self {
-        Call::seq(value)
+impl<T: ToCall> ToCall for [T] {
+    fn to_call(&self) -> Call {
+        Call::seq(self)
     }
 }
 
 /// Equivalent to [`Call::seq`].
-impl<T: Into<Call>> From<Vec<T>> for Call {
-    fn from(value: Vec<T>) -> Self {
-        Call::seq(value)
+impl<T: ToCall, const N: usize> ToCall for [T; N] {
+    fn to_call(&self) -> Call {
+        Call::seq(self)
+    }
+}
+
+/// Equivalent to [`Call::seq`].
+impl<T: ToCall> ToCall for Vec<T> {
+    fn to_call(&self) -> Call {
+        Call::seq(self)
     }
 }
 
 /// Equivalent to [`Call::empty`].
-impl From<()> for Call {
-    fn from(_: ()) -> Self {
+impl ToCall for () {
+    fn to_call(&self) -> Call {
         Call::empty()
-    }
-}
-impl From<&Call> for Call {
-    fn from(value: &Call) -> Self {
-        value.clone()
     }
 }
 

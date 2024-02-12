@@ -1,6 +1,6 @@
 use pretty_assertions::assert_str_eq;
 
-use crate::{call, thread::Thread, Call, CallRecorder};
+use crate::{call, thread::Thread, Call, CallRecorder, ToCall};
 
 #[test]
 fn err() {
@@ -76,7 +76,7 @@ expect : 10"#,
     );
 }
 
-fn assert_err(mut c: CallRecorder<impl Thread>, expect: impl Into<Call>, expect_display: &str) {
+fn assert_err(mut c: CallRecorder<impl Thread>, expect: impl ToCall, expect_display: &str) {
     match c.result_with_msg(expect, "(message)") {
         Ok(_) => panic!("no error."),
         Err(mut e) => {
