@@ -103,6 +103,12 @@ fn verify_2_local() {
     call!("4");
     c.verify(["3", "4"]);
 }
+#[test]
+fn id() {
+let mut c = CallRecorder::new_local();
+call!("1");
+c.verify(Call::id("1"));
+}
 
 #[test]
 fn seq_array() {

@@ -1,7 +1,37 @@
 //! A tool for testing that ensures code parts are called as expected.
 //!
-//! See [`CallRecorder`] for details.
+//! By creating an instance of [`CallRecorder`],
+//! it starts recording the calls to [`call`], and then [`CallRecorder::verify`] verifies that the calls to [`call`] are as expected.
 //!
+//! The pattern of expected calls specified in [`CallRecorder::verify`] uses [`Call`].
+//!
+//! ## Examples
+//!
+//! ```should_panic
+//! use assert_call::{call, CallRecorder};
+//!
+//! let mut c = CallRecorder::new();
+//!
+//! call!("1");
+//! call!("2");
+//!
+//! c.verify(["1", "3"]);
+//! ```
+//!
+//! The above code panics and outputs the following message
+//! because the call to [`call`] macro is different from what is specified in [`CallRecorder::verify`].
+//!
+//! ```txt
+//! actual calls :
+//!   1
+//! * 2
+//!   (end)
+//!
+//! mismatch call
+//! src\lib.rs:10
+//! actual : 2
+//! expect : 3
+//! ```
 use std::{cmp::min, collections::VecDeque, error::Error, fmt::Display};
 
 use thread::{Global, Local, Thread};
@@ -37,34 +67,6 @@ macro_rules! call {
 }
 
 /// Records and verifies calls to [`call`].
-///
-/// ## Example
-///
-/// ```should_panic
-/// use assert_call::{call, CallRecorder};
-///
-/// let mut c = CallRecorder::new();
-///
-/// call!("1");
-/// call!("2");
-///
-/// c.verify(["1", "3"]);
-/// ```
-///
-/// The above code panics and outputs the following message
-/// because the call to [`call`] macro is different from what is specified in [`verify`](CallRecorder::verify).
-///
-/// ```txt
-/// actual calls :
-///   1
-/// * 2
-///   (end)
-///
-/// mismatch call
-/// src\lib.rs:10
-/// actual : 2
-/// expect : 3
-/// ```
 pub struct CallRecorder<T: Thread = Global> {
     thread: T,
 }
@@ -150,27 +152,82 @@ pub enum Call {
 
 impl Call {
     /// Create `Call` to represent a single [`call`] call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use assert_call::{call, Call, CallRecorder};
+    ///
+    /// let mut c = CallRecorder::new();
+    /// call!("1");
+    /// c.verify(Call::id("1"));
+    /// ```
     pub fn id(id: impl Display) -> Self {
         Self::Id(id.to_string())
     }
 
     /// Create `Call` to represent no [`call`] call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use assert_call::{Call, CallRecorder};
+    ///
+    /// let mut c = CallRecorder::new();
+    /// c.verify(Call::empty());
+    /// ```
     pub fn empty() -> Self {
         Self::Seq(VecDeque::new())
     }
 
     /// Create `Call` to represent all specified `Call`s will be called in sequence.
-    pub fn seq<T: Into<Call>>(p: impl IntoIterator<Item = T>) -> Self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use assert_call::{call, Call, CallRecorder};
+    ///
+    /// let mut c = CallRecorder::new();
+    /// call!("1");
+    /// call!("2");
+    /// c.verify(Call::seq(["1", "2"]));
+    /// ```
+    pub fn seq(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
         Self::Seq(p.into_iter().map(|x| x.into()).collect())
     }
 
     /// Create `Call` to represent all specified `Call`s will be called in parallel.
-    pub fn par<T: Into<Call>>(p: impl IntoIterator<Item = T>) -> Self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use assert_call::{call, Call, CallRecorder};
+    ///
+    /// let mut c = CallRecorder::new();
+    /// call!("a-1");
+    /// call!("b-1");
+    /// call!("b-2");
+    /// call!("a-2");
+    /// c.verify(Call::par([["a-1", "a-2"], ["b-1", "b-2"]]));
+    /// ```
+    pub fn par(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
         Self::Par(p.into_iter().map(|x| x.into()).collect())
     }
 
     /// Create `Call` to represent one of the specified `Call`s will be called.
-    pub fn any<T: Into<Call>>(p: impl IntoIterator<Item = T>) -> Self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use assert_call::{call, Call, CallRecorder};
+    ///
+    /// let mut c = CallRecorder::new();
+    /// call!("1");
+    /// c.verify(Call::any(["1", "2"]));
+    /// call!("4");
+    /// c.verify(Call::any(["3", "4"]));
+    /// ```
+    pub fn any(p: impl IntoIterator<Item = impl Into<Call>>) -> Self {
         Self::Any(p.into_iter().map(|x| x.into()).collect())
     }
 
