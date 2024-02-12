@@ -8,7 +8,7 @@ repository = "https://github.com/frozenlib/assert-call"
 documentation = "https://docs.rs/assert-call/"
 keywords = ["assert"]
 categories = ["development-tools::testing"]
-description = "A small utility for testing to verify that the expected parts of the code are called in the expected order."
+description = "A tool for testing that ensures code parts are called as expected."
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

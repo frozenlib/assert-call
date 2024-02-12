@@ -4,7 +4,7 @@
 [![Docs.rs](https://docs.rs/assert-call/badge.svg)](https://docs.rs/assert-call/)
 [![Actions Status](https://github.com/frozenlib/assert-call/workflows/CI/badge.svg)](https://github.com/frozenlib/assert-call/actions)
 
-A small utility for testing to verify that the expected parts of the code are called in the expected order.
+A tool for testing that ensures code parts are called as expected.
 
 ## Example
 

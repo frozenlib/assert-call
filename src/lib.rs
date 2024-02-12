@@ -1,4 +1,4 @@
-//! A small utility for testing to verify that the expected parts of the code are called in the expected order.
+//! A tool for testing that ensures code parts are called as expected.
 //!
 //! See [`CallRecorder`] for details.
 //!
