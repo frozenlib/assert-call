@@ -54,7 +54,7 @@ macro_rules! call {
 /// because the call to [`call`] macro is different from what is specified in [`verify`](CallRecorder::verify).
 ///
 /// ```txt
-/// all actual calls
+/// actual calls :
 ///   1
 /// * 2
 ///   (end)

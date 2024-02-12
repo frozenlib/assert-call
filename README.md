@@ -22,7 +22,7 @@ c.verify(["1", "3"]);
 The above code panics and outputs the following message because the call to `call!()` is different from what is specified in `verity()`.
 
 ```txt
-all actual calls
+actual calls :
   1
 * 2
   (end)
