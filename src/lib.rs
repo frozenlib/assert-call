@@ -52,6 +52,15 @@ mod tests;
 ///
 /// The argument is the call ID with the same format as [`std::format`].
 ///
+/// # Panics
+///
+/// Panics if [`CallRecorder`] is not initialized.
+///
+/// If `call!()` is allowed to be called while `CallRecorder` is not initialized,
+/// the test result will be wrong
+/// if a test that initializes `CallRecorder` and a test in which `CallRecorder` is not initialized are performed at the same time,
+/// so calling `call!()` without initializing `CallRecorder` is not allowed.
+///
 /// # Examples
 ///
 /// ```
