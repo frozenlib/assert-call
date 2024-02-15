@@ -32,10 +32,16 @@
 //! actual : 2
 //! expect : 3
 //! ```
-use std::{cmp::min, collections::VecDeque, error::Error, fmt::Display};
+use std::{
+    backtrace::{Backtrace, BacktraceStatus},
+    collections::VecDeque,
+    error::Error,
+    fmt::Display,
+    thread::ThreadId,
+};
 
-use records::{Global, Local, Thread};
-use yansi::{Condition, Paint};
+use records::{Global, Local, Records, Thread};
+use yansi::Condition;
 
 pub mod records;
 
@@ -106,11 +112,7 @@ impl<T: Thread> CallRecorder<T> {
         match self.result_with_msg(expect, msg) {
             Ok(_) => {}
             Err(e) => {
-                if Condition::tty_and_color() {
-                    panic!("{e:#}");
-                } else {
-                    panic!("{e}")
-                }
+                panic!("{:#}", e.display(true, Condition::tty_and_color()));
             }
         }
     }
@@ -120,7 +122,7 @@ impl<T: Thread> CallRecorder<T> {
     /// Calling this method clears the recorded [`call`] calls.
     fn result_with_msg(&mut self, expect: impl ToCall, msg: &str) -> Result<(), CallMismatchError> {
         let expect: Call = expect.to_call();
-        let actual = self.thread.take_actual().0;
+        let actual = self.thread.take_actual();
         expect.verify(actual, msg)
     }
 }
@@ -225,8 +227,8 @@ impl Call {
         Self::Any(p.into_iter().map(|x| x.to_call()).collect())
     }
 
-    fn verify(mut self, actual: Vec<Record>, msg: &str) -> Result<(), CallMismatchError> {
-        match self.verify_nexts(&actual) {
+    fn verify(mut self, actual: Records, msg: &str) -> Result<(), CallMismatchError> {
+        match self.verify_nexts(&actual.0) {
             Ok(_) => Ok(()),
             Err(mut e) => {
                 e.actual = actual;
@@ -380,7 +382,7 @@ impl ToCall for () {
 #[derive(Debug)]
 struct CallMismatchError {
     msg: String,
-    actual: Vec<Record>,
+    actual: Records,
     expect: Vec<String>,
     mismatch_index: usize,
 }
@@ -388,14 +390,14 @@ impl CallMismatchError {
     fn new(expect: Vec<String>, mismatch_index: usize) -> Self {
         Self {
             msg: String::new(),
-            actual: Vec::new(),
+            actual: Records::empty(),
             expect,
             mismatch_index,
         }
     }
 
     fn actual_id(&self, index: usize) -> &str {
-        if let Some(a) = self.actual.get(index) {
+        if let Some(a) = self.actual.0.get(index) {
             &a.id
         } else {
             "(end)"
@@ -403,59 +405,59 @@ impl CallMismatchError {
     }
     #[cfg(test)]
     fn set_dummy_file_line(&mut self) {
-        for a in &mut self.actual {
+        for a in &mut self.actual.0 {
             a.set_dummy_file_line();
         }
     }
-}
-impl Display for CallMismatchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "actual calls :")?;
+
+    pub fn display(&self, backtrace: bool, color: bool) -> impl Display + '_ {
+        struct CallMismatchErrorDisplay<'a> {
+            this: &'a CallMismatchError,
+            backtrace: bool,
+            color: bool,
+        }
+        impl<'a> std::fmt::Display for CallMismatchErrorDisplay<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.this.fmt_with(f, self.backtrace, self.color)
+            }
+        }
+        CallMismatchErrorDisplay {
+            this: self,
+            backtrace,
+            color,
+        }
+    }
+
+    fn fmt_with(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        backtrace: bool,
+        color: bool,
+    ) -> std::fmt::Result {
         let around = 5;
-
-        let mut start = 0;
-        let end = self.actual.len();
-
-        if self.mismatch_index > around {
-            start = self.mismatch_index - around;
+        if backtrace && self.actual.has_bakctrace() {
+            writeln!(f, "actual calls with backtrace :")?;
+            self.actual.fmt_backtrace(f, self.mismatch_index, around)?;
+            writeln!(f)?;
         }
-        if start > 0 {
-            writeln!(f, "  ...(previous {start} calls omitted)")?;
-        }
-        let end = min(self.mismatch_index + around + 1, end);
 
-        let write_actual = |f: &mut std::fmt::Formatter<'_>, index: usize, id: &str| {
-            let is_mismatch = index == self.mismatch_index;
-            let head = if is_mismatch { "*" } else { " " };
-            let cond = if is_mismatch && f.alternate() {
-                Condition::ALWAYS
-            } else {
-                Condition::NEVER
-            };
-            writeln!(f, "{}", format_args!("{head} {id}").red().whenever(cond))
-        };
-
-        for index in start..end {
-            write_actual(f, index, self.actual_id(index))?;
-        }
-        if end == self.actual.len() {
-            write_actual(f, end, "(end)")?;
-        } else {
-            writeln!(
-                f,
-                "  ...(following {} calls omitted)",
-                self.actual.len() - end
-            )?;
-        }
+        writeln!(f, "actual calls :")?;
+        self.actual
+            .fmt_summary(f, self.mismatch_index, around, color)?;
 
         writeln!(f)?;
         writeln!(f, "{}", self.msg)?;
-        if let Some(a) = self.actual.get(self.mismatch_index) {
+        if let Some(a) = self.actual.0.get(self.mismatch_index) {
             writeln!(f, "{}:{}", a.file, a.line)?;
         }
         writeln!(f, "actual : {}", self.actual_id(self.mismatch_index))?;
         writeln!(f, "expect : {}", self.expect.join(", "))?;
         Ok(())
+    }
+}
+impl Display for CallMismatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_with(f, false, false)
     }
 }
 impl Error for CallMismatchError {}
@@ -466,11 +468,25 @@ struct Record {
     id: String,
     file: &'static str,
     line: u32,
+    backtrace: Backtrace,
+    thread_id: ThreadId,
 }
 impl Record {
     #[cfg(test)]
     fn set_dummy_file_line(&mut self) {
         self.file = r"tests\test.rs";
         self.line = 10;
+    }
+}
+
+impl Display for Record {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "# {}", self.id)?;
+        writeln!(f, "{}:{}", self.file, self.line)?;
+        if self.backtrace.status() == BacktraceStatus::Captured {
+            writeln!(f)?;
+            writeln!(f, "{}", self.backtrace)?;
+        }
+        Ok(())
     }
 }

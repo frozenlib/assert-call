@@ -1,9 +1,15 @@
 use std::{
+    backtrace::{Backtrace, BacktraceStatus},
     cell::RefCell,
+    cmp::min,
+    fmt::{self, Formatter},
     marker::PhantomData,
     mem::take,
     sync::{Condvar, Mutex},
+    thread,
 };
+
+use yansi::{Condition, Paint};
 
 use crate::Record;
 
@@ -65,18 +71,115 @@ impl Drop for Global {
     }
 }
 
+#[derive(Debug)]
 pub struct Records(pub(crate) Vec<Record>);
 
 impl Records {
+    pub(crate) fn empty() -> Self {
+        Self(Vec::new())
+    }
+
     #[track_caller]
     pub fn push(id: String, file: &'static str, line: u32) {
+        let record = Record {
+            id,
+            file,
+            line,
+            backtrace: Backtrace::capture(),
+            thread_id: thread::current().id(),
+        };
         ACTUAL_LOCAL.with(|actual| {
-            let r = Record { id, file, line };
             if let Some(actual) = &mut *actual.borrow_mut() {
-                actual.push(r);
+                actual.push(record);
             } else if let Some(seq) = ACTUAL_GLOBAL.lock().unwrap().as_mut() {
-                seq.push(r);
+                seq.push(record);
             }
         });
+    }
+
+    fn id(&self, index: usize) -> &str {
+        if let Some(a) = self.0.get(index) {
+            &a.id
+        } else {
+            "(end)"
+        }
+    }
+
+    pub(crate) fn fmt_summary(
+        &self,
+        f: &mut Formatter,
+        mismatch_index: usize,
+        around: usize,
+        color: bool,
+    ) -> fmt::Result {
+        let mut start = 0;
+        let end = self.0.len();
+        if mismatch_index > around {
+            start = mismatch_index - around;
+        }
+        let end = min(mismatch_index + around + 1, end);
+        if start > 0 {
+            writeln!(f, "  ...(previous {start} calls omitted)")?;
+        }
+        for index in start..end {
+            self.fmt_item_summary(f, mismatch_index == index, self.id(index), color)?;
+        }
+        if end == self.0.len() {
+            self.fmt_item_summary(f, mismatch_index == self.0.len(), "(end)", color)?;
+        } else {
+            writeln!(f, "  ...(following {} calls omitted)", self.0.len() - end)?;
+        }
+        Ok(())
+    }
+    fn fmt_item_summary(
+        &self,
+        f: &mut Formatter,
+        is_mismatch: bool,
+        id: &str,
+        color: bool,
+    ) -> fmt::Result {
+        let head = if is_mismatch { "*" } else { " " };
+        let cond = if is_mismatch && color {
+            Condition::ALWAYS
+        } else {
+            Condition::NEVER
+        };
+        writeln!(f, "{}", format_args!("{head} {id}").red().whenever(cond))
+    }
+    pub(crate) fn fmt_backtrace(
+        &self,
+        f: &mut Formatter,
+        mismatch_index: usize,
+        around: usize,
+    ) -> fmt::Result {
+        let mut start = 0;
+        let end = self.0.len();
+        if mismatch_index > around {
+            start = mismatch_index - around;
+        }
+        let end = min(mismatch_index + 1, end);
+        if start > 0 {
+            writeln!(f, "# ...(previous {start} calls omitted)")?;
+        }
+        for index in start..end {
+            let r = &self.0[index];
+            writeln!(f, "# {}", r.id)?;
+            writeln!(f, "{}:{}", r.file, r.line)?;
+            writeln!(f, "thread: {:?}", r.thread_id)?;
+            writeln!(f, "{}", r.backtrace)?;
+        }
+
+        if end == self.0.len() {
+            writeln!(f, "# (end)")?;
+        } else {
+            writeln!(f, "  ...(following {} calls omitted)", self.0.len() - end)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn has_bakctrace(&self) -> bool {
+        self.0
+            .iter()
+            .any(|r| r.backtrace.status() == BacktraceStatus::Captured)
     }
 }
