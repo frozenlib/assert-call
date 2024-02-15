@@ -32,6 +32,12 @@
 //! actual : 2
 //! expect : 3
 //! ```
+//!
+//! # Backtrace support
+//!
+//! If backtrace capture is enabled at [`Backtrace::capture`],
+//! [`CallRecorder::verify`] outputs detailed information including the backtrace for each [`call!`] call.
+//!
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     collections::VecDeque,
