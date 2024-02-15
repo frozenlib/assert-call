@@ -37,7 +37,7 @@ use std::{
     collections::VecDeque,
     error::Error,
     fmt::Display,
-    thread::ThreadId,
+    thread::{self, ThreadId},
 };
 
 use records::{Global, Local, Records, Thread};
@@ -385,6 +385,7 @@ struct CallMismatchError {
     actual: Records,
     expect: Vec<String>,
     mismatch_index: usize,
+    thread_id: ThreadId,
 }
 impl CallMismatchError {
     fn new(expect: Vec<String>, mismatch_index: usize) -> Self {
@@ -393,6 +394,7 @@ impl CallMismatchError {
             actual: Records::empty(),
             expect,
             mismatch_index,
+            thread_id: thread::current().id(),
         }
     }
 
@@ -449,6 +451,9 @@ impl CallMismatchError {
         writeln!(f, "{}", self.msg)?;
         if let Some(a) = self.actual.0.get(self.mismatch_index) {
             writeln!(f, "{}:{}", a.file, a.line)?;
+        }
+        if backtrace {
+            writeln!(f, "thread : {:?}", self.thread_id)?;
         }
         writeln!(f, "actual : {}", self.actual_id(self.mismatch_index))?;
         writeln!(f, "expect : {}", self.expect.join(", "))?;
