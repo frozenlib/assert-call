@@ -14,7 +14,7 @@ use yansi::{Condition, Paint};
 use crate::Record;
 
 thread_local! {
-    static ACTUAL_LOCAL: RefCell<Option<Vec<Record>>> = RefCell::new(None);
+    static ACTUAL_LOCAL: RefCell<Option<Vec<Record>>> = const { RefCell::new(None) };
 }
 
 static ACTUAL_GLOBAL: Mutex<Option<Vec<Record>>> = Mutex::new(None);
