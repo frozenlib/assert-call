@@ -433,7 +433,7 @@ impl CallMismatchError {
             backtrace: bool,
             color: bool,
         }
-        impl<'a> std::fmt::Display for CallMismatchErrorDisplay<'a> {
+        impl std::fmt::Display for CallMismatchErrorDisplay<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.this.fmt_with(f, self.backtrace, self.color)
             }
