@@ -88,19 +88,21 @@ impl Records {
             backtrace: Backtrace::capture(),
             thread_id: thread::current().id(),
         };
-        let used = ACTUAL_LOCAL.with(|actual| {
+        if let Err(e) = ACTUAL_LOCAL.with(|actual| {
             if let Some(actual) = &mut *actual.borrow_mut() {
                 actual.push(record);
-                true
+                Ok(())
             } else if let Some(seq) = ACTUAL_GLOBAL.lock().unwrap().as_mut() {
                 seq.push(record);
-                true
+                Ok(())
             } else {
-                false
+                let id = record.id;
+                Err(format!(
+                    "`CallRecorder` is not initialized. (\"{id}\")\n{file}:{line}"
+                ))
             }
-        });
-        if !used {
-            panic!("`CallRecorder` is not initialized.");
+        }) {
+            panic!("{e}");
         }
     }
 
