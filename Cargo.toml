@@ -15,7 +15,7 @@ include = ["/src/**"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-yansi = { version = "1.0.0-rc.1", features = ["detect-tty", "detect-env"] }
+yansi = { version = "1.0.1", features = ["detect-tty", "detect-env"] }
 
 [dev-dependencies]
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
