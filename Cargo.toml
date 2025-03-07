@@ -1,7 +1,7 @@
 [package]
 name = "assert-call"
 version = "0.1.1"
-edition = "2021"
+edition = "2024"
 authors = ["frozenlib <frozenlib@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
