@@ -10,7 +10,6 @@ documentation = "https://docs.rs/assert-call/"
 keywords = ["assert", "mock"]
 categories = ["development-tools::testing"]
 description = "A tool for testing that ensures code parts are called as expected."
-include = ["/src/**"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
